@@ -35,7 +35,7 @@ namespace Microsoft.DocAsCode
         public ListWithStringFallback XRefMaps { get; set; }
 
         [JsonProperty("xrefservice")]
-        public ListWithStringFallback XRefServers { get; set; }
+        public ListWithStringFallback XRefServiceUrls { get; set; }
 
         [JsonProperty("dest")]
         public string Destination { get; set; }
