@@ -154,15 +154,15 @@ namespace Microsoft.DocAsCode.Build.Engine
 
             if (uidList.Count > 0)
             {
-                uidList = ResolveByXRefService(uidList, ExternalXRefSpec).Result;
-            }
-            if (uidList.Count > 0)
-            {
                 uidList = ResolveByXRefMaps(uidList, ExternalXRefSpec);
             }
             if (uidList.Count > 0)
             {
                 uidList = ResolveByExternalReferencePackages(uidList, ExternalXRefSpec);
+            }
+            if (uidList.Count > 0)
+            {
+                uidList = ResolveByXRefServiceAsync(uidList, ExternalXRefSpec).Result;
             }
 
             foreach (var uid in uidList)
@@ -200,52 +200,62 @@ namespace Microsoft.DocAsCode.Build.Engine
             return list;
         }
 
-        private async Task<List<string>> ResolveByXRefService(List<string> uidList, ConcurrentDictionary<string, XRefSpec> externalXRefSpec)
+        private async Task<List<string>> ResolveByXRefServiceAsync(List<string> uidList, ConcurrentDictionary<string, XRefSpec> externalXRefSpec)
         {
             if (XRefServiceUrls == null || XRefServiceUrls.Length == 0)
             {
-                Logger.LogInfo($"You haven't provide an xrefservice item in docfx.json or command options!");
+                Logger.LogWarning($"You haven't provide an xrefservice item in docfx.json or command options!");
                 return uidList;
             }
             string requestUrl = XRefServiceUrls[0];
             var list = new List<string>();
-            //var client = new HttpClient();
             using (var client = new HttpClient())
             {
                 client.BaseAddress = new Uri(requestUrl);
                 client.DefaultRequestHeaders.Accept.Clear();
                 client.DefaultRequestHeaders.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
 
-                StringContent content = new StringContent(Newtonsoft.Json.JsonConvert.SerializeObject(uidList), System.Text.Encoding.UTF8, "application/json");
-                HttpResponseMessage response = await client.PostAsync("", content);
-                if (response.IsSuccessStatusCode)
+                for (int i = 0; i < uidList.Count; i += 1000)
                 {
-                    string data = await response.Content.ReadAsStringAsync();
-                    List<XRefSpec> xsList = Newtonsoft.Json.JsonConvert.DeserializeObject<List<XRefSpec>>(data);
-                    for (int i = 0; i < xsList.Count; i++)
+                    List<string> smallPiece;
+                    if (i + 1000 < uidList.Count)
                     {
-                        if (xsList[i] == null)
+                        smallPiece = uidList.GetRange(i, 1000);
+                    }
+                    else
+                    {
+                        smallPiece = uidList.GetRange(i, uidList.Count - i);
+                    }
+
+                    StringContent content = new StringContent(JsonUtility.Serialize(smallPiece), System.Text.Encoding.UTF8, "application/json");
+                    HttpResponseMessage response = await client.PostAsync("", content);
+                    if (response.IsSuccessStatusCode)
+                    {
+                        var data = await response.Content.ReadAsStreamAsync();
+                        List<XRefSpec> xsList;
+                        using (var sr = new StreamReader(data))
                         {
-                            list.Add(uidList[i]);
+                            xsList = JsonUtility.Deserialize<List<XRefSpec>>(sr);
                         }
-                        else
+                        for (int j = 0; j < xsList.Count; j++)
                         {
-                            externalXRefSpec.AddOrUpdate(uidList[i], xsList[i], (_, old) => old + xsList[i]);
+                            if (xsList[j] == null)
+                            {
+                                list.Add(smallPiece[j]);
+                            }
+                            else
+                            {
+                                externalXRefSpec.AddOrUpdate(smallPiece[j], xsList[j], (_, old) => old + xsList[j]);
+                            }
                         }
+                    }
+                    else
+                    {
+                        list.AddRange(smallPiece);
                     }
                 }
             }
-            //if (Uri.TryCreate(requestUrl, UriKind.Absolute, out Uri uri))
-            //{
-            //    var response = client.GetAsync(uri).Result;
-            //    if (response.IsSuccessStatusCode)
-            //    {
-            //        var responseContent = response.Content;
-            //        string responseString = responseContent.ReadAsStringAsync().Result;
-            //        xf = Newtonsoft.Json.JsonConvert.DeserializeObject<XRefSpec>(responseString);
-            //    }
-            //}
-            Logger.LogInfo($"query  in function FindByRequest");
+            Logger.LogInfo($"{uidList.Count - list.Count} external references found in {requestUrl} configured in docfx.json");
             return list;
         }
 
