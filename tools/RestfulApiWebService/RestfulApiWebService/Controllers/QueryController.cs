@@ -34,7 +34,24 @@ namespace RestfulApiService.Controllers
             List<XRefSpec> xf = Newtonsoft.Json.JsonConvert.DeserializeObject<List<XRefSpec>>("[" + string.Join(",", ut) + "]");
             return Ok(xf);
         }
-           
+
+        [HttpGet]
+        [Route("extension/{uidPart}")]
+        public async Task<IHttpActionResult> ExtensionGetByUid(string uidPart)
+        {
+            var ut = await db.uidts.Where(b => b.uid.StartsWith(uidPart))
+                                .Select(c => c.objectStr)
+                                .ToListAsync();
+
+            List<XRefSpec> xf = Newtonsoft.Json.JsonConvert.DeserializeObject<List<XRefSpec>>("[" + string.Join(",", ut) + "]");
+            List<string> list = new List<string>();
+            foreach(var xrefSpec in xf)
+            {
+                list.Add(xrefSpec.Uid);
+            }
+            return Ok(list);
+        }
+
         [HttpPost]
         [Route("")]
         public async Task<IHttpActionResult> PostByUids([FromBody]string[] uids)

@@ -75,8 +75,8 @@
   <ItemGroup>
     <Content Include="Models\data.Context.tt">
       <Generator>TextTemplatingFileGenerator</Generator>
-      <DependentUpon>data.edmx</DependentUpon>
       <LastGenOutput>data.Context.cs</LastGenOutput>
+      <DependentUpon>data.edmx</DependentUpon>
     </Content>
     <Content Include="Models\data.tt">
       <Generator>TextTemplatingFileGenerator</Generator>
